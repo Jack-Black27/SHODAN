@@ -122,4 +122,35 @@ echo ">>> Repo synced and tagged successfully as $TAG_NAME!"
 
 ---
 
-Now th
+# === Add git-sync helper ===
+cat << 'EOF' > ~/.git-sync.sh
+#!/bin/bash
+# Quick Git sync script
+
+BRANCH="main"
+
+echo "🔄 Syncing with GitHub..."
+
+git pull origin $BRANCH
+git add .
+if [ -z "$1" ]; then
+    COMMIT_MSG="Update from $(date)"
+else
+    COMMIT_MSG="$1"
+fi
+git commit -m "$COMMIT_MSG"
+git push origin $BRANCH
+
+echo "✅ Sync complete."
+EOF
+
+chmod +x ~/.git-sync.sh
+
+# Make it available globally
+if [[ "$SHELL" == *"bash" ]]; then
+    echo 'alias git-sync="~/.git-sync.sh"' >> ~/.bashrc
+elif [[ "$SHELL" == *"zsh" ]]; then
+    echo 'alias git-sync="~/.git-sync.sh"' >> ~/.zshrc
+fi
+
+echo "✨ You can now use 'git-sync' anywhere!"

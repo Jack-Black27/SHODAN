@@ -122,14 +122,4 @@ echo ">>> Repo synced and tagged successfully as $TAG_NAME!"
 
 ---
 
-Now the workflow is bulletproof:
-
-If you try to reuse a tag name, it stops and tells you to pick another.
-
-Prevents both local duplicate tags and remote tag collisions.
-
-Everything else flows exactly the same.
-
-
-Would you like me to also make it multi-tag aware — so you can input multiple tags in one run (e.g. v2.1.1-branding and chapter1-v1.0) and it applies them both?
-
+Now th

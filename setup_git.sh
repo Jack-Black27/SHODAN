@@ -1,86 +1,61 @@
-Exactly — better to bulletproof it now than hit a wall mid-push. I’ve added a tag safety check: if the tag you enter already exists locally or remotely, the script warns you and aborts before doing anything destructive.
-
-
----
-
-📄 setup_git.sh (final with tag safety check)
-
 #!/bin/bash
-# ----------------------------------------
-# GitHub Project Setup Script for SHODAN
-# Repo: https://github.com/Jack-Black27/SHODAN
-# ----------------------------------------
 
-set -e  # Exit immediately if a command fails
+# === Universal Git Setup Script ===
+# Works on Desktop Linux/macOS + Termux (Android)
 
-echo ">>> Setting up SHODAN repo..."
+REPO_URL="git@github.com:Jack-Black27/SHODAN.git"
+BRANCH="main"
 
-# Ask user for version tag
-read -p "Enter version tag (e.g. v2.1.1-branding): " TAG_NAME
-read -p "Enter tag message (e.g. Branding & Icon Pack release): " TAG_MESSAGE
+echo "🔧 Starting Git setup..."
 
-# --- Safety check for existing tag ---
-if git show-ref --tags | grep -q "refs/tags/$TAG_NAME"; then
-    echo "ERROR: Tag '$TAG_NAME' already exists locally. Choose another name."
-    exit 1
+# Detect Termux vs Desktop
+if [[ "$PREFIX" == *"com.termux"* ]]; then
+    echo "📱 Termux environment detected"
+    pkg update -y && pkg upgrade -y
+    pkg install -y git openssh
+else
+    echo "💻 Desktop/Linux/macOS environment detected"
+    if command -v apt >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y git openssh-client
+    elif command -v brew >/dev/null 2>&1; then
+        brew install git openssh
+    fi
 fi
 
-if git ls-remote --tags origin | grep -q "refs/tags/$TAG_NAME"; then
-    echo "ERROR: Tag '$TAG_NAME' already exists on remote. Choose another name."
-    exit 1
+# Configure Git identity
+read -p "👉 Enter your Git username: " GIT_USER
+git config --global user.name "$GIT_USER"
+
+read -p "👉 Enter your Git email: " GIT_EMAIL
+git config --global user.email "$GIT_EMAIL"
+
+echo "✅ Git identity set: $GIT_USER <$GIT_EMAIL>"
+
+# Generate SSH key if not present
+if [ ! -f ~/.ssh/id_ed25519 ]; then
+    echo "🔑 Generating new SSH key..."
+    ssh-keygen -t ed25519 -C "$GIT_EMAIL" -f ~/.ssh/id_ed25519 -N ""
+    echo "⚠️ Copy this SSH key to GitHub:"
+    cat ~/.ssh/id_ed25519.pub
+    echo "➡️ Go to https://github.com/settings/keys and add it."
+    read -p "Press Enter once added to GitHub..."
 fi
 
-# --- Create .gitignore ---
-cat > .gitignore <<'EOF'
-# -------------------------
-# OS / Editor junk
-# -------------------------
-.DS_Store
-Thumbs.db
-*.log
-*.tmp
-*.swp
-*.swo
-.vscode/
-.idea/
+# Test GitHub connection
+ssh -T git@github.com
 
-# -------------------------
-# Python (Grid Translator App)
-# -------------------------
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-env/
-venv/
-*.egg-info/
-dist/
-build/
+# Clone repo if not present
+if [ ! -d "SHODAN" ]; then
+    echo "📂 Cloning repo..."
+    git clone -b $BRANCH $REPO_URL
+else
+    echo "📂 Repo already exists. Skipping clone."
+fi
 
-# -------------------------
-# Unreal Engine 5 (Project G)
-# -------------------------
-Binaries/
-DerivedDataCache/
-Intermediate/
-Saved/
-.vs/
-*.sln
-*.opensdf
-*.sdf
-*.suo
-*.xcodeproj
-*.xcworkspace
-
-# Ignore build output folders
-*.app
-*.ipa
-*.exe
-*.dll
-*.dylib
-*.so
-
-# -------------------------
+echo "🎉 Setup complete. You can now use:"
+echo "  cd SHODAN"
+echo "  git pull origin $BRANCH"
+echo "  git add . && git commit -m 'your message' && git push origin $BRANCH"# -------------------------
 # Mobile Assets
 # -------------------------
 /android/app/build/

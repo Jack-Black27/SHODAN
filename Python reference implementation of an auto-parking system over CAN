@@ -1,0 +1,155 @@
+---
+
+import time
+import random
+from enum import Enum
+
+# ------------------------
+# CAN Adapter (simulator)
+# ------------------------
+class CANAdapterSimulator:
+    """Simulates sending CAN frames over a bus."""
+    def send(self, can_id, data_bytes):
+        print(f"[CAN-SIM SEND] ID: {hex(can_id)} Data: {data_bytes}")
+
+# ------------------------
+# Sensor simulation
+# ------------------------
+class SensorState:
+    def __init__(self):
+        # distances in meters
+        self.front = 5.0
+        self.rear = 5.0
+        self.left = 2.0
+        self.right = 1.5
+        self.yaw = 0.0  # degrees
+        self.speed = 0.0  # m/s
+
+class SensorSimulator:
+    def __init__(self):
+        self.state = SensorState()
+
+    def step(self, throttle, brake, steer, dt=0.1):
+        """Update simulated vehicle physics."""
+        accel = throttle*2.0 - brake*5.0 - 0.1*self.state.speed
+        self.state.speed = max(0.0, self.state.speed + accel*dt)
+        self.state.yaw += steer*0.1*dt
+        move = self.state.speed * dt
+        self.state.front = max(0.2, self.state.front - move)
+        self.state.rear += move
+        # small random noise
+        for attr in ['front', 'rear', 'left', 'right']:
+            setattr(self.state, attr, getattr(self.state, attr) + (random.random()-0.5)*0.01)
+        return self.state
+
+# ------------------------
+# AutoPark state machine
+# ------------------------
+class AutoParkState(Enum):
+    IDLE = 0
+    SEARCH_SPOT = 1
+    ALIGN = 2
+    MANEUVER = 3
+    COMPLETE = 4
+    ABORT = 5
+
+# ------------------------
+# Controller
+# ------------------------
+class AutoParkController:
+    def __init__(self, can_adapter, sensors):
+        self.can = can_adapter
+        self.sensors = sensors
+        self.state = AutoParkState.IDLE
+        self.target_side = "right"
+
+    # Placeholder mapping for manufacturer-specific voltages
+    MANUFACTURER_SIGNAL_MAP = {
+        "steering": {"min_v": 0.0, "max_v": 5.0},   # 0-5V input signal
+        "throttle": {"min_v": 0.0, "max_v": 4.0},   # 0-4V proportional
+        "brake": {"min_v": 0.0, "max_v": 5.0},      # 0-5V analog
+        "gear": {"positions": {"P":0, "R":1, "N":2, "D":3}}
+    }
+
+    # Placeholder for manufacturer CAN IDs
+    CAN_IDS = {
+        "steering": 0x200,
+        "throttle": 0x201,
+        "brake": 0x202,
+        "gear": 0x203
+    }
+
+    def voltage_to_byte(self, voltage, min_v, max_v):
+        """Convert voltage to 0-255 byte for CAN frame."""
+        voltage = max(min_v, min(max_v, voltage))
+        scaled = int((voltage - min_v) / (max_v - min_v) * 255)
+        return scaled
+
+    def send_control(self, steer_v, throttle_v, brake_v, gear_pos):
+        """Send simulated CAN frames using manufacturer voltage mapping."""
+        steer_byte = self.voltage_to_byte(steer_v, **self.MANUFACTURER_SIGNAL_MAP["steering"])
+        thr_byte = self.voltage_to_byte(throttle_v, **self.MANUFACTURER_SIGNAL_MAP["throttle"])
+        br_byte = self.voltage_to_byte(brake_v, **self.MANUFACTURER_SIGNAL_MAP["brake"])
+        gear_byte = self.MANUFACTURER_SIGNAL_MAP["gear"]["positions"].get(gear_pos, 0)
+
+        self.can.send(self.CAN_IDS["steering"], [steer_byte])
+        self.can.send(self.CAN_IDS["throttle"], [thr_byte])
+        self.can.send(self.CAN_IDS["brake"], [br_byte])
+        self.can.send(self.CAN_IDS["gear"], [gear_byte])
+
+    def step(self, dt=0.1):
+        s = self.sensors.state
+        print(f"[State={self.state.name}] Front:{s.front:.2f}, Rear:{s.rear:.2f}, Left:{s.left:.2f}, Right:{s.right:.2f}, Yaw:{s.yaw:.1f}, Speed:{s.speed:.2f}")
+
+        if self.state == AutoParkState.IDLE:
+            self.state = AutoParkState.SEARCH_SPOT
+
+        elif self.state == AutoParkState.SEARCH_SPOT:
+            gap = s.right if self.target_side=="right" else s.left
+            if gap >= 1.2:
+                self.state = AutoParkState.ALIGN
+            else:
+                self.send_control(2.5, 2.0, 0.0, "D")
+                self.sensors.step(2.0, 0.0, 0.0, dt)
+
+        elif self.state == AutoParkState.ALIGN:
+            steer_v = 4.0 if self.target_side=="right" else 1.0
+            self.send_control(steer_v, 0.0, 0.0, "R")
+            self.sensors.step(0.0, 0.0, steer_v, dt)
+            self.state = AutoParkState.MANEUVER
+
+        elif self.state == AutoParkState.MANEUVER:
+            if s.rear >= 0.6 and abs(s.yaw) <= 5.0:
+                self.state = AutoParkState.COMPLETE
+                self.send_control(2.5, 0.0, 5.0, "P")
+            else:
+                steer_v = 1.0 if self.target_side=="right" else 4.0
+                self.send_control(steer_v, 0.0, 0.0, "R")
+                self.sensors.step(0.0,0.0,steer_v, dt)
+
+        elif self.state == AutoParkState.COMPLETE:
+            self.send_control(2.5, 0.0, 5.0, "P")
+            print("Parking complete!")
+
+        elif self.state == AutoParkState.ABORT:
+            self.send_control(2.5, 0.0, 5.0, "P")
+            print("Parking aborted!")
+
+# ------------------------
+# Simulation run
+# ------------------------
+if __name__ == "__main__":
+    can_sim = CANAdapterSimulator()
+    sensors = SensorSimulator()
+    controller = AutoParkController(can_sim, sensors)
+
+    for _ in range(50):
+        controller.step(0.1)
+        time.sleep(0.05)
+        if controller.state == AutoParkState.COMPLETE:
+            break
+
+
+---
+
+

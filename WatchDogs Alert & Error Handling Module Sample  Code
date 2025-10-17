@@ -1,0 +1,134 @@
+import json
+import smtplib
+from email.message import EmailMessage
+
+# -------------------------
+# Alert Notification
+# -------------------------
+class AlertManager:
+    """Manages alerts via email/SMS."""
+    
+    def __init__(self, alert_email: str = None):
+        self.alert_email = alert_email
+
+    def send_email_alert(self, subject: str, body: str):
+        if not self.alert_email:
+            logger.warning("Alert email not configured. Skipping alert.")
+            return
+        try:
+            # Placeholder for real SMTP server; anonymized
+            msg = EmailMessage()
+            msg['Subject'] = subject
+            msg['From'] = 'watchdog@example.com'
+            msg['To'] = self.alert_email
+            msg.set_content(body)
+            # smtp = smtplib.SMTP('smtp.example.com')
+            # smtp.send_message(msg)
+            logger.info(f"Alert sent: {subject}")
+        except Exception as e:
+            logger.error(f"Failed to send alert: {str(e)}")
+
+
+# -------------------------
+# Historical Error Logging
+# -------------------------
+class ErrorHistory:
+    """Tracks historical errors for auditing."""
+    
+    HISTORY_FILE = "error_history.json"
+    
+    def __init__(self):
+        self.history = []
+        self.load_history()
+    
+    def load_history(self):
+        if os.path.exists(self.HISTORY_FILE):
+            try:
+                with open(self.HISTORY_FILE, "r") as f:
+                    self.history = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load error history: {str(e)}")
+    
+    def log_error(self, error: WatchDogError):
+        entry = {
+            "timestamp": time.time(),
+            "file": getattr(error, 'filepath', None),
+            "type": type(error).__name__,
+            "message": str(error)
+        }
+        self.history.append(entry)
+        self.save_history()
+    
+    def save_history(self):
+        try:
+            with open(self.HISTORY_FILE, "w") as f:
+                json.dump(self.history[-100:], f, indent=2)  # keep last 100 entries
+        except Exception as e:
+            logger.error(f"Failed to save error history: {str(e)}")
+
+
+# -------------------------
+# WatchDog Updates
+# -------------------------
+class WatchDogExtended(WatchDog):
+    """Extended WatchDog with alerts and dynamic checksum updates."""
+    
+    def __init__(self, file_list, checksum_db, check_interval=10, alert_email=None):
+        super().__init__(file_list, checksum_db, check_interval)
+        self.alert_manager = AlertManager(alert_email)
+        self.error_history = ErrorHistory()
+    
+    def handle_error(self, error: WatchDogError):
+        """Handle errors with alerts and history tracking."""
+        self.error_history.log_error(error)
+        super().handle_error(error)
+        subject = f"WatchDog Alert: {type(error).__name__}"
+        body = f"File: {getattr(error, 'filepath', 'N/A')}\nError: {str(error)}"
+        self.alert_manager.send_email_alert(subject, body)
+    
+    def update_checksum(self, filepath: str, new_checksum: str):
+        """Dynamically update expected checksum."""
+        self.checksum_db[filepath] = new_checksum
+        logger.info(f"Checksum updated for {filepath}: {new_checksum}")
+    
+    def simulate_tamper(self, filepath: str):
+        """Simulate a file corruption for demo purposes."""
+        if os.path.exists(filepath):
+            with open(filepath, "a") as f:
+                f.write("# tamper simulation\n")
+            logger.info(f"Simulated tampering on {filepath}")
+
+
+# -------------------------
+# Example Extended Usage
+# -------------------------
+if __name__ == "__main__":
+    monitored_files = [
+        "config.yaml",
+        "data.db",
+        "app.bin",
+        "resources.bundle",
+        "script.py",
+    ]
+
+    checksum_database = {
+        "config.yaml": "abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+        "data.db": "def456def456def456def456def456def456def456def456def456def456def4",
+        "app.bin": "789ghi789ghi789ghi789ghi789ghi789ghi789ghi789ghi789ghi789ghi789g",
+        "resources.bundle": "012jkl012jkl012jkl012jkl012jkl012jkl012jkl012jkl012jkl012jkl012j",
+        "script.py": "345mno345mno345mno345mno345mno345mno345mno345mno345mno345mno345m",
+    }
+
+    watchdog = WatchDogExtended(monitored_files, checksum_database, check_interval=15, alert_email="investor@example.com")
+
+    # Optional: simulate tampering
+    watchdog.simulate_tamper("config.yaml")
+
+    try:
+        monitor_thread = threading.Thread(target=watchdog.monitor, daemon=True)
+        monitor_thread.start()
+        time.sleep(60)
+    finally:
+        watchdog.stop()
+        monitor_thread.join()
+        logger.info("Extended WatchDog demo completed.")

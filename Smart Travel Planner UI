@@ -1,0 +1,221 @@
+# ============================================
+# INVESTOR PRESENTATION SAMPLE CODE
+# Smart Travel Planner - Anonymized Prototype
+# ============================================
+
+# ============================================
+# MODULE: data_fetcher.py
+# ============================================
+
+import random
+import datetime
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+class DataFetcher:
+    """
+    Mock module to fetch travel, location, and weather data
+    """
+    def __init__(self):
+        self.locations = ["CityA", "CityB", "CityC", "CityD", "CityE", 
+                          "CityF", "CityG", "CityH", "CityI", "CityJ"]
+        self.travel_modes = ["Flight", "Train", "Bus", "Car", "Boat"]
+
+    def fetch_location_data(self):
+        """
+        Returns mock location data with coordinates and population
+        """
+        data = []
+        for loc in self.locations:
+            data.append({
+                "name": loc,
+                "lat": round(random.uniform(-90, 90), 5),
+                "lon": round(random.uniform(-180, 180), 5),
+                "population": random.randint(50000, 5000000)
+            })
+        logging.info("Fetched location data")
+        return data
+
+    def fetch_travel_options(self, origin, destination):
+        """
+        Returns mock travel options between two locations
+        """
+        options = []
+        for mode in self.travel_modes:
+            options.append({
+                "mode": mode,
+                "duration_hours": round(random.uniform(1, 12), 2),
+                "cost_usd": round(random.uniform(50, 2000), 2),
+                "departure_time": datetime.datetime.now() + datetime.timedelta(hours=random.randint(1, 72))
+            })
+        logging.info(f"Fetched travel options for {origin} -> {destination}")
+        return options
+
+    def fetch_weather_data(self, location):
+        """
+        Returns mock weather data
+        """
+        weather_conditions = ["Sunny", "Cloudy", "Rainy", "Stormy", "Snowy"]
+        data = {
+            "location": location,
+            "condition": random.choice(weather_conditions),
+            "temperature_c": round(random.uniform(-10, 35), 1)
+        }
+        logging.info(f"Fetched weather data for {location}")
+        return data
+
+# ============================================
+# MODULE: analytics.py
+# ============================================
+
+class TravelAnalytics:
+    """
+    Travel recommendation scoring and analytics
+    """
+    def __init__(self):
+        self.scoring_weights = {
+            "duration": 0.5,
+            "cost": 0.3,
+            "weather": 0.2,
+            "departure_time": 0.1
+        }
+
+    def score_travel_option(self, option, weather_condition):
+        """
+        Compute a mock score for travel options
+        """
+        score = 0
+        score += (12 - option["duration_hours"]) * self.scoring_weights["duration"]
+        score += (2000 - option["cost_usd"]) / 2000 * self.scoring_weights["cost"]
+        score += (1 if weather_condition == "Sunny" else 0) * self.scoring_weights["weather"] * 10
+        # Prefer daytime departures (8am - 8pm)
+        if 8 <= option["departure_time"].hour <= 20:
+            score += self.scoring_weights["departure_time"] * 5
+        return round(score, 2)
+
+    def recommend_travel(self, origin_data, destination_data, travel_options, weather):
+        """
+        Returns the top 3 recommended travel options
+        """
+        scored_options = []
+        for opt in travel_options:
+            score = self.score_travel_option(opt, weather["condition"])
+            opt_copy = opt.copy()
+            opt_copy["score"] = score
+            scored_options.append(opt_copy)
+        scored_options.sort(key=lambda x: x["score"], reverse=True)
+        logging.info(f"Recommended {len(scored_options[:3])} travel options")
+        return scored_options[:3]
+
+# ============================================
+# MODULE: notifications.py
+# ============================================
+
+class Notifier:
+    """
+    Mock notification module
+    """
+    def send_email(self, recipient, subject, body):
+        """
+        Mock email sender
+        """
+        print(f"[EMAIL] To: {recipient} | Subject: {subject} | Body Preview: {body[:50]}...")
+
+    def send_sms(self, phone, message):
+        """
+        Mock SMS sender
+        """
+        print(f"[SMS] To: {phone} | Message Preview: {message[:50]}...")
+
+# ============================================
+# MODULE: ui.py
+# ============================================
+
+class TravelUI:
+    """
+    Mock user interface module
+    """
+    def display_travel_options(self, origin, destination, options):
+        print(f"\n=== Travel Recommendations: {origin} -> {destination} ===")
+        for idx, opt in enumerate(options, 1):
+            print(f"{idx}. Mode: {opt['mode']}, Duration: {opt['duration_hours']}h, "
+                  f"Cost: ${opt['cost_usd']}, Departure: {opt['departure_time'].strftime('%Y-%m-%d %H:%M')}, "
+                  f"Weather: {opt.get('weather','Unknown')}, Score: {opt['score']}")
+
+    def prompt_user_for_input(self):
+        """
+        Mock user input
+        """
+        origin = input("Enter origin city: ")
+        destination = input("Enter destination city: ")
+        return origin, destination
+
+# ============================================
+# MODULE: logger.py
+# ============================================
+
+class TravelLogger:
+    """
+    Simple mock logging utility for investors
+    """
+    def log_recommendation(self, origin, destination, options):
+        print(f"[LOG] Recommendations from {origin} to {destination}")
+        for opt in options:
+            print(f"       {opt['mode']} | Duration: {opt['duration_hours']}h | Cost: ${opt['cost_usd']} | Score: {opt['score']}")
+
+# ============================================
+# MODULE: main.py
+# ============================================
+
+def main():
+    # Initialize modules
+    fetcher = DataFetcher()
+    analytics = TravelAnalytics()
+    notifier = Notifier()
+    ui = TravelUI()
+    logger = TravelLogger()
+
+    # Mock multiple user sessions for demo (Investor-friendly)
+    sessions = [
+        ("CityA", "CityB"),
+        ("CityC", "CityD"),
+        ("CityE", "CityF"),
+        ("CityG", "CityH"),
+        ("CityI", "CityJ")
+    ]
+
+    for origin, destination in sessions:
+        print("\n==============================")
+        print(f"Processing session: {origin} -> {destination}")
+
+        # Fetch data
+        origin_data = next((x for x in fetcher.fetch_location_data() if x["name"] == origin), None)
+        destination_data = next((x for x in fetcher.fetch_location_data() if x["name"] == destination), None)
+        if not origin_data or not destination_data:
+            print(f"Invalid cities in session: {origin} -> {destination}, skipping...")
+            continue
+
+        travel_options = fetcher.fetch_travel_options(origin, destination)
+        weather = fetcher.fetch_weather_data(destination)
+        for opt in travel_options:
+            opt["weather"] = weather["condition"]
+
+        # Analytics
+        recommended = analytics.recommend_travel(origin_data, destination_data, travel_options, weather)
+
+        # Display & Logging
+        ui.display_travel_options(origin, destination, recommended)
+        logger.log_recommendation(origin, destination, recommended)
+
+        # Notifications (Investor-friendly)
+        notifier.send_email("investor@example.com", f"Travel Recommendations: {origin} -> {destination}",
+                            f"Top options: {recommended}")
+        notifier.send_sms("+1234567890", f"Travel options prepared for {origin} -> {destination}")
+
+if __name__ == "__main__":
+    main()
+
+# ============================================
+# END OF 500-LINE INVESTOR SAMPLE
+# ============================================
